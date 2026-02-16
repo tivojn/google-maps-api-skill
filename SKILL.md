@@ -256,9 +256,11 @@ python3 ~/.claude/skills/google-maps-api/scripts/gmaps.py streetview --pano CAoS
 
 **For HTML pages** — ALWAYS use a direct Google Maps link instead (zero cost, zero key exposure):
 ```
-https://www.google.com/maps/@{lat},{lng},3a,75y,{heading}h,90t
+https://www.google.com/maps/@?api=1&map_action=pano&viewpoint={lat},{lng}&heading={heading}&pitch=0&fov=90
 ```
 See "Street View in HTML" section below for details.
+
+**WARNING:** Do NOT use the old shorthand format `@{lat},{lng},3a,75y,{heading}h,90t` — it is unreliable and often opens a zoomed-out world map instead of Street View. Always use the `map_action=pano` format above.
 
 ### 13. Static Maps
 
@@ -340,60 +342,96 @@ When the user asks location/geography/environment questions, use the appropriate
 
 If the user says yes (or explicitly asks for HTML/a page/a map), then generate it. If they don't respond or say no, just give them the text/JSON results.
 
-Generate HTML pages using the Google Maps JavaScript API (loaded via `<script src="https://maps.googleapis.com/maps/api/js?key=API_KEY&...">`) with the same API key from `.env`. Examples:
+**By default, generate zero-key HTML pages** using Google Maps embed iframes (`output=embed`) — no API key needed, no key exposure risk. Only use the Maps JavaScript API (`<script src="https://maps.googleapis.com/maps/api/js?key=...">`) when the user explicitly requests advanced interactive features (custom markers, polylines, clustering, etc.) that embeds can't support.
 
-| Result Type | Interactive HTML Element |
+### Zero-Key Embed Iframes (Default)
+
+Use these iframe formats for maps — they require **no API key** and are free:
+
+**Location/place map:**
+```html
+<iframe src="https://maps.google.com/maps?q=Oahu+Hawaii&z=10&output=embed"
+  width="100%" height="400" style="border:0" allowfullscreen loading="lazy"></iframe>
+```
+
+**Directions map:**
+```html
+<iframe src="https://maps.google.com/maps?saddr=Los+Angeles+CA&daddr=San+Jose+CA&output=embed"
+  width="100%" height="400" style="border:0" allowfullscreen loading="lazy"></iframe>
+```
+
+**Parameters:**
+- `q` — place name or address (URL-encoded, use `+` for spaces)
+- `saddr` / `daddr` — origin/destination for directions
+- `z` — zoom level (1-20, default ~12)
+- `output=embed` — required, makes it embeddable
+- `ll` — optional center coordinates `lat,lng`
+
+| Result Type | Default HTML Element |
 |-------------|------------------------|
-| Street View | **Direct Google Maps link** (opens full interactive Street View in new tab — zero cost, zero key exposure). See "Street View in HTML" section. |
-| Directions | Map with polyline route overlay, markers for origin/destination/waypoints |
-| Places search | Map with pins for each result + info window cards (name, rating, hours) |
-| Nearby search | Map centered on location with radius circle + place markers |
-| Static map | Zoomable, draggable embedded map instead of a fixed image |
-| Weather/Air Quality | Dashboard with location map + condition cards, icons, charts |
-| Elevation | Elevation profile chart + map with path markers |
-| Solar | Building map with solar potential overlay and stats |
-| Trip plans | Combined multi-section page: route map, place cards, weather widget |
+| Street View | **Direct Google Maps link** (`map_action=pano`) — opens full interactive Street View in new tab. See "Street View in HTML" section. |
+| Directions | Embed iframe with `saddr`/`daddr` + `output=embed` |
+| Places search | Embed iframe with `q=place+name` + `output=embed` + info cards |
+| Nearby search | Embed iframe centered on location + place cards |
+| Static map | Embed iframe with `q` and `z` (zoomable, draggable) |
+| Weather/Air Quality | Embed iframe for location + condition cards, icons, charts |
+| Elevation | Elevation profile chart + embed iframe with path markers |
+| Solar | Embed iframe for building location + solar potential stats |
+| Trip plans | Combined multi-section page: embed iframe maps, place cards, weather widget |
 
 When generating HTML pages:
-1. Use a single self-contained `.html` file (inline CSS/JS, no external dependencies except Google Maps JS API)
-2. Read the API key from `.env` the same way the Python script does — or have Claude inject it at generation time
-3. **NEVER use `google.maps.StreetViewPanorama` or the Street View JS API in HTML pages.** Always use direct Google Maps links for Street View (see "Street View in HTML" section below). This is a hard rule — zero tolerance for API key exposure in Street View.
-4. Save to the current working directory with a descriptive name (e.g., `marea-streetview.html`, `nyc-trip-plan.html`)
-5. Open automatically in the browser via `open <file>` (macOS) after creation
+1. Use a single self-contained `.html` file (inline CSS/JS, no external dependencies)
+2. **Default to zero-key embed iframes** (`output=embed`) for all maps — NO API key in HTML
+3. **NEVER use `google.maps.StreetViewPanorama` or the Street View JS API in HTML pages.** Always use direct Google Maps links with `map_action=pano` for Street View. This is a hard rule.
+4. **NEVER include a Google Maps JS API `<script>` tag unless the user explicitly requests advanced interactive features.** The `output=embed` iframe approach handles most use cases without any API key.
+5. Save to the current working directory with a descriptive name (e.g., `marea-streetview.html`, `nyc-trip-plan.html`)
+6. Open automatically in the browser via `open <file>` (macOS) after creation
 
 ### Street View in HTML — Zero Key Exposure
 
 **HARD RULE: Never embed Street View using the JavaScript API or Embed API in HTML pages.** Both approaches expose the API key in client-side code. Instead, ALWAYS use a direct Google Maps link that opens the full interactive Street View experience in the user's browser — zero cost, zero API key exposure.
 
-**Direct link format:**
+**Direct link format (Google Maps URLs API — reliable):**
 ```
-https://www.google.com/maps/@{lat},{lng},3a,75y,{heading}h,{pitch}t
+https://www.google.com/maps/@?api=1&map_action=pano&viewpoint={lat},{lng}&heading={heading}&pitch={pitch}&fov=90
 ```
 
 **Parameters:**
-- `{lat},{lng}` — coordinates of the Street View location
-- `3a` — zoom level (smaller = more zoomed in; `3a` is default, `1a` = close, `5a` = wide)
-- `75y` — field of view in degrees (75 is default)
-- `{heading}h` — compass heading in degrees (0=North, 90=East, 180=South, 270=West)
-- `{pitch}t` — pitch/tilt in degrees (90=level, 0=straight up, 180=straight down)
+- `viewpoint={lat},{lng}` — coordinates of the Street View location
+- `heading` — compass heading in degrees (0=North, 90=East, 180=South, 270=West)
+- `pitch` — pitch angle (-90=down, 0=level, 90=up)
+- `fov` — field of view in degrees (10-100, default 90)
+- `map_action=pano` — **required** — explicitly triggers Street View panorama mode
+
+**WARNING:** Do NOT use the old shorthand format `@{lat},{lng},3a,75y,{heading}h,{pitch}t` — it is unreliable and often fails to open Street View, instead showing a zoomed-out world map. Always use the `map_action=pano` format.
 
 **Examples:**
 ```
-https://www.google.com/maps/@40.76545,-73.98115,3a,75y,90h,90t
-https://www.google.com/maps/@48.8584,2.2945,3a,75y,180h,90t
-https://www.google.com/maps/@46.414,10.013,3a,75y,270h,85t
+https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=40.76545,-73.98115&heading=90&pitch=0&fov=90
+https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=48.8584,2.2945&heading=180&pitch=0&fov=90
+https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=46.414,10.013&heading=270&pitch=-5&fov=90
 ```
 
 **How to implement in HTML pages:**
 
-For a standalone Street View section:
+For a standalone Street View button:
 ```html
-<a href="https://www.google.com/maps/@40.76545,-73.98115,3a,75y,90h,90t"
+<a href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=40.76545,-73.98115&heading=90&pitch=0&fov=90"
    target="_blank" rel="noopener noreferrer"
    style="display:inline-block; padding:12px 24px; background:#4f46e5; color:white;
           border-radius:8px; text-decoration:none; font-weight:600;">
   Open Street View →
 </a>
+```
+
+For a JavaScript function (e.g., in trip plan pages with many locations):
+```javascript
+function openStreetView(lat, lng, name) {
+  window.open(
+    `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lng}&heading=0&pitch=0&fov=90`,
+    '_blank'
+  );
+}
 ```
 
 For a card/preview with context:
@@ -406,7 +444,7 @@ For a card/preview with context:
       <span>Interactive Street View</span>
     </div>
   </div>
-  <a href="https://www.google.com/maps/@{lat},{lng},3a,75y,{heading}h,90t"
+  <a href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint={lat},{lng}&heading=0&pitch=0&fov=90"
      target="_blank" rel="noopener noreferrer" class="sv-button">
     Open in Google Maps →
   </a>
@@ -462,7 +500,7 @@ All HTML pages use this theme by default unless the user requests otherwise.
 
 **Hero:** `linear-gradient(160deg, #eef2ff, #faf5ff, #fff7ed)` — indigo to lavender to peach
 
-**Maps:** Light custom style — muted stone tones, soft blue water `#c9d7e4`, green parks `#d4e9d4`, white roads
+**Maps:** Default Google Maps style via embed iframes. When using Maps JS API (opt-in), apply light custom style — muted stone tones, soft blue water `#c9d7e4`, green parks `#d4e9d4`, white roads
 
 **Shadows:** Subtle `0 1px 2px rgba(0,0,0,0.04)` base, `0 4px 6px` on hover
 
@@ -488,11 +526,12 @@ The user's own API key in `.env`, used locally by `gmaps.py`. Key never leaves t
 User's Machine
 ├─ .env (GOOGLE_MAPS_API_KEY=...)
 ├─ gmaps.py → calls Google APIs directly
-└─ HTML pages → key embedded (acceptable for personal use)
+└─ HTML pages → zero-key embed iframes (preferred) or key embedded (acceptable)
 ```
 
 **Risk**: Low — it's the user's own key on their own machine.
 **Key restriction**: None needed (or restrict to the APIs you use).
+**Best practice**: Even for personal use, prefer zero-key `output=embed` iframes for HTML pages. Only use Maps JS API when you need advanced features (custom markers, polylines, clustering).
 
 #### Mode 2: Users Bring Their Own Key (Multi-User App)
 
@@ -620,7 +659,8 @@ python3 ~/.claude/skills/google-maps-api/scripts/gmaps.py embed-url --mode stree
 
 | Deployment | Data APIs | Map Rendering | Key Exposure | Shareable |
 |-----------|-----------|---------------|-------------|-----------|
-| **Personal CLI** | User's key locally | User's key in HTML | User's own risk | No (key leaks) |
+| **Personal CLI** | User's key locally | Zero-key embed iframes (default) | **None** | Yes (no key) |
+| **Personal CLI (advanced)** | User's key locally | Maps JS API (opt-in for polylines, clustering, etc.) | User's own risk | No (key leaks) |
 | **BYOK (user's key)** | User's key on server | User creates frontend key | User's own risk | Static export only |
 | **Platform key (you pay)** | Backend key (IP-locked) | Frontend key (domain-locked) | **Safe** | Static export only |
 
