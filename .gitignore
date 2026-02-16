@@ -1,0 +1,19 @@
+# API keys
+.env
+.env.local
+.env.production
+
+# Generated HTML with real keys (user-generated, not for sharing)
+# Only example HTML with placeholder keys should be committed
+*.jpg
+*.png
+
+# Playwright browser logs
+.playwright-mcp/
+
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
