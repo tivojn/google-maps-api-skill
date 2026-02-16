@@ -247,11 +247,18 @@ python3 ~/.claude/skills/google-maps-api/scripts/gmaps.py nearest-roads "60.170,
 
 ### 12. Street View
 
+**CLI data use** (server-side image download, costs $7/1,000):
 ```bash
 python3 ~/.claude/skills/google-maps-api/scripts/gmaps.py streetview --lat 46.414 --lng 10.013 --heading 90
 python3 ~/.claude/skills/google-maps-api/scripts/gmaps.py streetview --location "Eiffel Tower, Paris" --size 800x600
 python3 ~/.claude/skills/google-maps-api/scripts/gmaps.py streetview --pano CAoSLEFGMVFpcE... --output paris_sv.jpg
 ```
+
+**For HTML pages** — ALWAYS use a direct Google Maps link instead (zero cost, zero key exposure):
+```
+https://www.google.com/maps/@{lat},{lng},3a,75y,{heading}h,90t
+```
+See "Street View in HTML" section below for details.
 
 ### 13. Static Maps
 
@@ -337,7 +344,7 @@ Generate HTML pages using the Google Maps JavaScript API (loaded via `<script sr
 
 | Result Type | Interactive HTML Element |
 |-------------|------------------------|
-| Street View | Embedded 360° panorama (`google.maps.StreetViewPanorama`) — pan, zoom, rotate |
+| Street View | **Direct Google Maps link** (opens full interactive Street View in new tab — zero cost, zero key exposure). See "Street View in HTML" section. |
 | Directions | Map with polyline route overlay, markers for origin/destination/waypoints |
 | Places search | Map with pins for each result + info window cards (name, rating, hours) |
 | Nearby search | Map centered on location with radius circle + place markers |
@@ -350,8 +357,70 @@ Generate HTML pages using the Google Maps JavaScript API (loaded via `<script sr
 When generating HTML pages:
 1. Use a single self-contained `.html` file (inline CSS/JS, no external dependencies except Google Maps JS API)
 2. Read the API key from `.env` the same way the Python script does — or have Claude inject it at generation time
-3. Save to the current working directory with a descriptive name (e.g., `marea-streetview.html`, `nyc-trip-plan.html`)
-4. Open automatically in the browser via `open <file>` (macOS) after creation
+3. **NEVER use `google.maps.StreetViewPanorama` or the Street View JS API in HTML pages.** Always use direct Google Maps links for Street View (see "Street View in HTML" section below). This is a hard rule — zero tolerance for API key exposure in Street View.
+4. Save to the current working directory with a descriptive name (e.g., `marea-streetview.html`, `nyc-trip-plan.html`)
+5. Open automatically in the browser via `open <file>` (macOS) after creation
+
+### Street View in HTML — Zero Key Exposure
+
+**HARD RULE: Never embed Street View using the JavaScript API or Embed API in HTML pages.** Both approaches expose the API key in client-side code. Instead, ALWAYS use a direct Google Maps link that opens the full interactive Street View experience in the user's browser — zero cost, zero API key exposure.
+
+**Direct link format:**
+```
+https://www.google.com/maps/@{lat},{lng},3a,75y,{heading}h,{pitch}t
+```
+
+**Parameters:**
+- `{lat},{lng}` — coordinates of the Street View location
+- `3a` — zoom level (smaller = more zoomed in; `3a` is default, `1a` = close, `5a` = wide)
+- `75y` — field of view in degrees (75 is default)
+- `{heading}h` — compass heading in degrees (0=North, 90=East, 180=South, 270=West)
+- `{pitch}t` — pitch/tilt in degrees (90=level, 0=straight up, 180=straight down)
+
+**Examples:**
+```
+https://www.google.com/maps/@40.76545,-73.98115,3a,75y,90h,90t
+https://www.google.com/maps/@48.8584,2.2945,3a,75y,180h,90t
+https://www.google.com/maps/@46.414,10.013,3a,75y,270h,85t
+```
+
+**How to implement in HTML pages:**
+
+For a standalone Street View section:
+```html
+<a href="https://www.google.com/maps/@40.76545,-73.98115,3a,75y,90h,90t"
+   target="_blank" rel="noopener noreferrer"
+   style="display:inline-block; padding:12px 24px; background:#4f46e5; color:white;
+          border-radius:8px; text-decoration:none; font-weight:600;">
+  Open Street View →
+</a>
+```
+
+For a card/preview with context:
+```html
+<div class="streetview-card">
+  <div class="sv-preview">
+    <!-- Optional: use a static map or place photo as preview thumbnail -->
+    <div class="sv-overlay">
+      <span class="sv-icon">🔭</span>
+      <span>Interactive Street View</span>
+    </div>
+  </div>
+  <a href="https://www.google.com/maps/@{lat},{lng},3a,75y,{heading}h,90t"
+     target="_blank" rel="noopener noreferrer" class="sv-button">
+    Open in Google Maps →
+  </a>
+  <p class="sv-note">Opens full 360° interactive Street View — pan, zoom, and walk around</p>
+</div>
+```
+
+**In consolidated trip plan pages**, replace the former `StreetViewPanorama` section with a styled button/link card. The user clicks to open full Street View in a new tab — they get the complete interactive experience directly from Google Maps.
+
+**Why this approach:**
+- Zero API key exposure — no key in HTML source at all
+- Zero cost — no API calls, no billing
+- Better experience — full Google Maps Street View with navigation, not a limited embed
+- Works for all deployment modes (personal, BYOK, platform key)
 
 ### Consolidated One-Stop Pages
 
@@ -361,7 +430,7 @@ A consolidated page should include every piece of data gathered during the conve
 - Interactive route map with driving directions polyline
 - Weather widget for the destination
 - Hotel/place cards with photos, ratings, hours
-- Restaurant recommendation with Street View panorama
+- Restaurant recommendation with Street View link (opens full 360° view in Google Maps)
 - Timeline/itinerary section
 - Rental car & airport info
 
@@ -535,7 +604,7 @@ When users want to download or share HTML pages (email, Slack, etc.), generate a
 | Element | In-App (interactive) | Shareable Export |
 |---------|---------------------|------------------|
 | Maps | Maps JavaScript API (frontend key) | Maps Embed API `<iframe>` (free, no key abuse risk) |
-| Street View | `StreetViewPanorama` (frontend key) | Static image embedded as base64 (fetched server-side) |
+| Street View | **Direct Google Maps link** (no key needed) | **Direct Google Maps link** (no key needed) |
 | Route lines | `DirectionsRenderer` (frontend key) | Static map image with path overlay (base64) |
 | Data (weather, places) | Pre-rendered from backend | Same pre-rendered HTML — no API calls needed |
 | API key exposure | Frontend key, domain-locked | **No key at all** |
@@ -654,7 +723,7 @@ When a user's API call fails with **403**, **REQUEST_DENIED**, or an "API not en
 Most APIs charge per request. Key free/paid tiers:
 - **Maps Embed API**: Always free (use for shareable exports)
 - **Maps JavaScript API**: $7 per 1,000 loads
-- **Street View (JS)**: $7 per 1,000 panorama loads
+- **Street View (JS)**: $7 per 1,000 panorama loads — **NEVER use in HTML pages; use direct Google Maps links instead (free, no key)**
 - **$200/month free credit** on Google Maps Platform
 - Routes API: $5-15 per 1,000 requests depending on features
 - Places API: $17-40 per 1,000 requests
