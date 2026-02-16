@@ -552,15 +552,86 @@ When serving multiple users with your key, also implement:
 - **Quota alerts**: Set up GCP billing alerts to catch unexpected spikes
 - **Budget caps**: Set maximum daily spend in GCP Console
 
-## Error Handling
+## Error Handling & Guided API Setup
 
-- **403 Forbidden**: API not enabled in GCP Console, or key restricted
-- **400 Bad Request**: Invalid parameters - check the API docs
-- **429 Rate Limited**: Too many requests - add a short delay
-- **ZERO_RESULTS**: No results found - try broader search
+When a command fails, detect the error type and respond accordingly:
+
+- **403 Forbidden / API not enabled**: See **Guided API Enablement** below
+- **400 Bad Request**: Invalid parameters — check the API docs
+- **429 Rate Limited**: Too many requests — add a short delay
+- **ZERO_RESULTS**: No results found — try broader search
 - **INVALID_REQUEST**: Missing required parameters
 - **Key not found**: Ensure `GOOGLE_MAPS_API_KEY` is set in `.env` or environment
 - **RefererNotAllowedMapError**: Frontend key's HTTP referrer restriction doesn't match the current domain
+- **REQUEST_DENIED**: API key is invalid, expired, or restricted from calling this API
+
+### Guided API Enablement (Playwright Walkthrough)
+
+When a user's API call fails with **403**, **REQUEST_DENIED**, or an "API not enabled" error:
+
+1. **Tell the user what happened** in plain language:
+   > "It looks like the [API Name] isn't enabled on your Google Cloud project yet. No worries — I can walk you through enabling it right now in your browser. Want me to go ahead?"
+
+2. **If the user says yes**, use Playwright MCP to automate the enablement:
+
+   ```
+   Step 1: Navigate to the specific API's enablement page:
+           https://console.cloud.google.com/apis/library/[API_ENDPOINT]
+
+   Step 2: If a project selector appears, let the user pick their project
+           (or auto-select if there's only one)
+
+   Step 3: Click the "Enable" button
+
+   Step 4: Wait for the confirmation (loading spinner → "API enabled" or
+           the button changes to "Manage")
+
+   Step 5: Confirm to the user: "Done! [API Name] is now enabled.
+           Let me retry your request."
+
+   Step 6: Retry the original command automatically
+   ```
+
+3. **API endpoint URLs** for Playwright navigation (use these exact paths):
+
+   | API | GCP Library URL path |
+   |-----|---------------------|
+   | Geocoding | `geocoding-backend.googleapis.com` |
+   | Routes | `routes-backend.googleapis.com` |
+   | Places (New) | `places-backend.googleapis.com` |
+   | Elevation | `elevation-backend.googleapis.com` |
+   | Time Zone | `timezone-backend.googleapis.com` |
+   | Air Quality | `airquality.googleapis.com` |
+   | Pollen | `pollen.googleapis.com` |
+   | Solar | `solar.googleapis.com` |
+   | Weather | `weather.googleapis.com` |
+   | Address Validation | `addressvalidation.googleapis.com` |
+   | Roads | `roads.googleapis.com` |
+   | Street View Static | `street-view-image-backend.googleapis.com` |
+   | Maps Static | `static-maps-backend.googleapis.com` |
+   | Maps JavaScript | `maps-backend.googleapis.com` |
+   | Maps Embed | `maps-embed-backend.googleapis.com` |
+   | Geolocation | `geolocation.googleapis.com` |
+   | Aerial View | `aerialview.googleapis.com` |
+   | Route Optimization | `routeoptimization.googleapis.com` |
+
+   Full URL pattern: `https://console.cloud.google.com/apis/library/[path_from_table]`
+
+4. **If the user says no** (prefers to do it manually), give them the direct URL:
+   > "No problem! Here's the direct link — just click Enable:
+   > https://console.cloud.google.com/apis/library/[API_ENDPOINT]"
+
+5. **Batch enablement**: If the user is setting up for the first time and multiple APIs need enabling, offer to enable them all in one go:
+   > "I can enable all the commonly used APIs for you in one pass — Geocoding, Routes, Places, Weather, Elevation, Time Zone, and Maps JavaScript. Want me to set them all up?"
+
+   Then loop through each API page via Playwright, clicking Enable on each.
+
+6. **Important notes for Playwright walkthrough**:
+   - The user must already be logged into Google Cloud Console in their browser
+   - If they're not logged in, tell them to sign in first at https://console.cloud.google.com
+   - Some APIs (Weather, Solar) may require billing to be enabled on the project
+   - After enabling, there can be a ~30 second propagation delay before the API works
+   - If "Enable" button is not visible and "Manage" is shown instead, the API is already enabled
 
 ## Pricing Notes
 
