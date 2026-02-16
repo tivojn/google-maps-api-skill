@@ -7,6 +7,16 @@ user_invocable: true
 
 # Google Maps Platform - Universal API Skill
 
+## Critical Behavior Rules
+
+**These rules override all other instructions in this skill:**
+
+1. **Communicate blockers immediately.** When ANY API call fails (403, REQUEST_DENIED, "not enabled", etc.), STOP and tell the user what happened in plain language. Do NOT silently work around it with web search or other fallbacks. Offer to fix it via Playwright (see "Guided API Enablement" section below).
+
+2. **Ask before generating HTML.** NEVER start writing an HTML page without asking the user first. They may just want a text answer, JSON output, or a quick summary. Ask: "Want me to make an interactive HTML page for this, or is a text summary enough?"
+
+3. **Ask before choosing output format.** When the user's request could be answered as text, JSON, or a visual page, ask which they prefer. Don't assume.
+
 ## Overview
 
 Full-featured CLI client for **every** Google Maps Platform REST API. Unlike the browser-based google-maps skill, this skill calls Google's APIs directly for fast, structured JSON responses. Covers 20+ APIs across maps, routes, places, environment, and geospatial services.
@@ -317,9 +327,11 @@ When the user asks location/geography/environment questions, use the appropriate
 
 ## Interactive HTML Output
 
-After delivering final results, **always offer to generate an interactive HTML page** when the data benefits from visual or interactive presentation. An HTML page opened in the browser is far more intuitive than static JSON or screenshot files.
+**IMPORTANT: Always ASK before generating HTML.** Never start writing an HTML file without the user's explicit approval. After delivering results as text, ask:
 
-Tell the user: *"Would you like an interactive HTML page? The default theme is **Warm Stone Sunrise** (light, warm-toned, premium)."*
+> "Want me to put this into an interactive HTML page you can open in the browser? Default theme is **Warm Stone Sunrise** (light, warm-toned, premium)."
+
+If the user says yes (or explicitly asks for HTML/a page/a map), then generate it. If they don't respond or say no, just give them the text/JSON results.
 
 Generate HTML pages using the Google Maps JavaScript API (loaded via `<script src="https://maps.googleapis.com/maps/api/js?key=API_KEY&...">`) with the same API key from `.env`. Examples:
 
@@ -554,18 +566,22 @@ When serving multiple users with your key, also implement:
 
 ## Error Handling & Guided API Setup
 
+**CRITICAL: When ANY command fails, you MUST tell the user immediately.** Do NOT silently fall back to web search or other workarounds. The user needs to know what's broken so they can decide how to fix it.
+
 When a command fails, detect the error type and respond accordingly:
 
-- **403 Forbidden / API not enabled**: See **Guided API Enablement** below
+- **403 Forbidden / API not enabled**: **STOP. Tell the user. Offer Playwright walkthrough** (see below)
+- **REQUEST_DENIED**: **STOP. Tell the user. Offer Playwright walkthrough** (see below)
 - **400 Bad Request**: Invalid parameters — check the API docs
 - **429 Rate Limited**: Too many requests — add a short delay
 - **ZERO_RESULTS**: No results found — try broader search
 - **INVALID_REQUEST**: Missing required parameters
 - **Key not found**: Ensure `GOOGLE_MAPS_API_KEY` is set in `.env` or environment
 - **RefererNotAllowedMapError**: Frontend key's HTTP referrer restriction doesn't match the current domain
-- **REQUEST_DENIED**: API key is invalid, expired, or restricted from calling this API
 
 ### Guided API Enablement (Playwright Walkthrough)
+
+**This is the PRIMARY response when an API is not enabled.** Do not skip this. Do not silently work around it.
 
 When a user's API call fails with **403**, **REQUEST_DENIED**, or an "API not enabled" error:
 
