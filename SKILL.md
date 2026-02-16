@@ -351,13 +351,13 @@ Use these iframe formats for maps — they require **no API key** and are free:
 **Location/place map:**
 ```html
 <iframe src="https://maps.google.com/maps?q=Oahu+Hawaii&z=10&output=embed"
-  width="100%" height="400" style="border:0" allowfullscreen loading="lazy"></iframe>
+  width="100%" height="400" style="border:0" allowfullscreen></iframe>
 ```
 
 **Directions map:**
 ```html
 <iframe src="https://maps.google.com/maps?saddr=Los+Angeles+CA&daddr=San+Jose+CA&output=embed"
-  width="100%" height="400" style="border:0" allowfullscreen loading="lazy"></iframe>
+  width="100%" height="400" style="border:0" allowfullscreen></iframe>
 ```
 
 **Parameters:**
@@ -366,6 +366,8 @@ Use these iframe formats for maps — they require **no API key** and are free:
 - `z` — zoom level (1-20, default ~12)
 - `output=embed` — required, makes it embeddable
 - `ll` — optional center coordinates `lat,lng`
+
+**WARNING:** Do NOT use `loading="lazy"` on Google Maps embed iframes. Lazy loading prevents off-screen iframes from loading, causing maps below the fold to appear permanently blank. Always omit the `loading` attribute or use `loading="eager"`.
 
 | Result Type | Default HTML Element |
 |-------------|------------------------|
